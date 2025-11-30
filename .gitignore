@@ -10,7 +10,7 @@ cmake-build-*/
 *.so
 *.dll
 *.exe
-miniFSM        # 可执行文件名（根据你的 target 名调整）
+
 
 # IDE / Editor files
 .vscode/
