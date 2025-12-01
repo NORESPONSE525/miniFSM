@@ -1,11 +1,69 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.14)
 project(miniFSM)
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
+enable_testing()
 
-set(SOURCES
-    src/main.cpp
-    src/FSM.cpp
-)
+# Option to enable test coverage flags and report generation
+option(ENABLE_COVERAGE "Enable coverage reporting using gcov/gcovr/lcov" OFF)
 
-add_executable(miniFSM ${SOURCES})
+add_library(miniFSM_lib src/FSM.cpp)
+target_include_directories(miniFSM_lib PUBLIC ${PROJECT_SOURCE_DIR}/include)
+
+# Add coverage compile/link flags for supported compilers
+if(ENABLE_COVERAGE)
+	if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+		# force no optimizations and debug symbols for better coverage results
+		set(COVERAGE_COMPILE_FLAGS -O0 -g --coverage)
+		set(COVERAGE_LINK_FLAGS --coverage)
+	elseif(MSVC)
+		message(WARNING "Coverage via CMake flags is not implemented for MSVC. Use Visual Studio built-in coverage tools or a different toolchain.")
+	endif()
+endif()
+
+add_executable(miniFSM src/main.cpp)
+target_link_libraries(miniFSM miniFSM_lib)
+
+if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+	target_compile_options(miniFSM PRIVATE ${COVERAGE_COMPILE_FLAGS})
+	target_link_options(miniFSM PRIVATE ${COVERAGE_LINK_FLAGS})
+	target_compile_options(miniFSM_lib PRIVATE ${COVERAGE_COMPILE_FLAGS})
+	target_link_options(miniFSM_lib PRIVATE ${COVERAGE_LINK_FLAGS})
+endif()
+
+add_subdirectory(thirdpart/googletest-1.17.0)
+
+add_subdirectory(tests)
+
+# Optional coverage target: runs tests and generates HTML (if gcovr present)
+if(ENABLE_COVERAGE)
+	find_program(GCOVR_EXECUTABLE gcovr)
+	find_program(LCOV_EXECUTABLE lcov)
+	find_program(GENHTML_EXECUTABLE genhtml)
+
+	if(GCOVR_EXECUTABLE)
+		add_custom_target(coverage
+			COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+			COMMAND ${GCOVR_EXECUTABLE} -r ${PROJECT_SOURCE_DIR} --html-details -o ${CMAKE_BINARY_DIR}/coverage.html
+			WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+			COMMENT "Run tests and generate coverage report (gcovr). Output: ${CMAKE_BINARY_DIR}/coverage.html"
+			USES_TERMINAL
+		)
+	elseif(LCOV_EXECUTABLE AND GENHTML_EXECUTABLE)
+		add_custom_target(coverage
+			COMMAND ${CMAKE_COMMAND} -E remove -f coverage.info
+			COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+			COMMAND ${LCOV_EXECUTABLE} --capture --directory ${CMAKE_BINARY_DIR} --output-file coverage.info
+			COMMAND ${GENHTML_EXECUTABLE} coverage.info --output-directory ${CMAKE_BINARY_DIR}/coverage_html
+			WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+			COMMENT "Run tests and generate coverage report (lcov/genhtml). Output: ${CMAKE_BINARY_DIR}/coverage_html"
+			USES_TERMINAL
+		)
+	else()
+		add_custom_target(coverage
+			COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+			COMMENT "gcovr or lcov/genhtml not found; only ran tests. Install gcovr or lcov + genhtml to generate a report"
+			WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+			USES_TERMINAL
+		)
+	endif()
+endif()

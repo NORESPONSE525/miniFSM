@@ -1,0 +1,16 @@
+# 创建测试可执行文件
+add_executable(test_FSM test_FSM.cpp)
+
+# 链接 FSM 库和 GoogleTest
+# 这两个目标（miniFSM_lib 和 GTest::gtest_main）都是由根 CMakeLists.txt 提供的
+target_link_libraries(test_FSM PRIVATE miniFSM_lib GTest::gtest_main)
+
+# 使用 include(GoogleTest) 和 gtest_discover_tests 来自动发现和注册测试
+include(GoogleTest)
+gtest_discover_tests(test_FSM)
+
+# Apply coverage compile/link flags to test executable when coverage enabled
+if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+	target_compile_options(test_FSM PRIVATE ${COVERAGE_COMPILE_FLAGS})
+	target_link_options(test_FSM PRIVATE ${COVERAGE_LINK_FLAGS})
+endif()
